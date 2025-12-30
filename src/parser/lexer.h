@@ -25,12 +25,11 @@
 #include <string>
 #include <unordered_map>
 
-#endif //FLUXO_DB_LEXER_H
-
 // Enum for all possible token types
 enum class TokenType {
     // Keywords
     SELECT, INSERT, INTO, VALUES, FROM, WHERE, CREATE, TABLE, DROP, DELETE, UPDATE, SET,
+    PRIMARY, KEY, NOT, UNIQUE, NULL_TYPE,
 
     // Literals
     IDENTIFIER, // Table names, column names, etc.
@@ -87,18 +86,25 @@ private:
         {"DROP", TokenType::DROP},
         {"DELETE", TokenType::DELETE},
         {"UPDATE", TokenType::UPDATE},
-        {"SET", TokenType::SET}
+        {"SET", TokenType::SET},
+        {"PRIMARY", TokenType::PRIMARY},
+        {"KEY", TokenType::KEY},
+        {"NOT", TokenType::NOT},
+        {"UNIQUE", TokenType::UNIQUE},
+        {"NULL", TokenType::NULL_TYPE},
     };
 
     void readChar();
     void skipWhitespace();
     std::string readIdentifier();
     std::string readNumber();
+    std::string readString();
     TokenType lookupIdent(const std::string& ident);
 
     friend class Parser;
 public:
-    explicit Lexer(std::string input);
+    explicit Lexer(const std::string &input);
 
     Token NextToken();
 };
+#endif //FLUXO_DB_LEXER_H

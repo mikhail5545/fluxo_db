@@ -23,7 +23,3 @@
 #include "ast.h"
 #include "lexer.h"
 
-Statement parse_statement(std::string& input) {
-    Lexer lexer(input);
-    Token next = lexer.current();
-}

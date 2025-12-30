@@ -21,6 +21,8 @@
 //
 #include "parser.h"
 
+#include <algorithm>
+#include <iostream>
 #include <stdexcept>
 
 static int get_precedence(const TokenType type) {
@@ -42,7 +44,7 @@ static int get_precedence(const TokenType type) {
     }
 }
 
-static BinaryOp::Op token_to_binop(TokenType type) {
+static BinaryOp::Op token_to_binop(const TokenType type) {
     switch (type) {
         case TokenType::PLUS:
             return BinaryOp::Op::PLUS;
@@ -59,6 +61,38 @@ static BinaryOp::Op token_to_binop(TokenType type) {
         default:
             throw std::runtime_error("Unknown binary operator token");
     }
+}
+
+static DataType token_to_data_type(const Token& token) {
+    if (token.type == TokenType::IDENTIFIER) {
+        std::string type_name = token.literal;
+        std::ranges::transform(type_name, type_name.begin(), ::toupper);
+
+        if (type_name == "INT" || type_name == "INTEGER") {
+            return DataType::INTEGER;
+        }
+        if (type_name == "BIGINT") {
+            return DataType::BIGINT;
+        }
+        if (type_name == "DOUBLE" || type_name == "FLOAT" || type_name == "REAL") {
+            return DataType::DOUBLE;
+        }
+        if (type_name == "TEXT") {
+            return DataType::TEXT;
+        }
+        if (type_name == "VARCHAR") {
+            return DataType::VARCHAR;
+        }
+        if (type_name == "BOOLEAN" || type_name == "BOOL") {
+            return DataType::BOOLEAN;
+        }
+        if (type_name == "DATE") {
+            return DataType::DATE;
+        }
+    }
+    throw std::runtime_error("Unknown data type: " + token.literal + "at line: " +
+        std::to_string(token.line) + ", column: " +
+        std::to_string(token.column));
 }
 
 Parser::Parser(Lexer &lexer) : lexer_(lexer) {
@@ -133,7 +167,12 @@ Statement Parser::parse_statement() {
     if (match(TokenType::SELECT)) {
         return parse_select_stmt();
     }
-    // Placeholder for INSERT, CREATE TABLE, etc.
+    if (match(TokenType::INSERT)) {
+        return parse_insert_stmt();
+    }
+    if (match(TokenType::CREATE)) {
+        return parse_create_table_stmt();
+    }
     throw std::runtime_error("Unsupported statement type at line " +
         std::to_string(current().line) + ", column " +
         std::to_string(current().column));
@@ -146,7 +185,7 @@ SelectStmt Parser::parse_select_stmt() {
     do {
         if (match(TokenType::ASTERISK)) {
             // Handle wildcard *
-            stmt.projections.push_back(ColumnRef{"*", std::nullopt});
+            stmt.projections.emplace_back(ColumnRef{"*", std::nullopt});
         } else {
             stmt.projections.push_back(parse_expression());
         }
@@ -169,6 +208,88 @@ SelectStmt Parser::parse_select_stmt() {
     return stmt;
 }
 
+InsertStmt Parser::parse_insert_stmt() {
+    InsertStmt stmt;
+
+    // Expect: INTO table_name
+    expect(TokenType::INSERT, "Expected INSERT keyword at line " +
+        std::to_string(current().line) + ", column " +
+        std::to_string(current().column));
+    const Token table_token = expect(TokenType::IDENTIFIER, "Expected table name after INSERT");
+    stmt.table_name = table_token.literal;
+
+    // Expect: (column1, column2, ...)
+    if (match(TokenType::LPAREN)) {
+        do {
+            Token col = expect(TokenType::IDENTIFIER, "Expected column name in INSERT");
+            stmt.columns.push_back(col.literal);
+        } while (match(TokenType::COMMA));
+        expect(TokenType::VALUES, "Expected VALUES keyword after column list in INSERT");
+    }
+    // Parse list of values: (1, 'a'), (2, 'b'), ...
+    do {
+        expect(TokenType::LPAREN, "Expected '(' before values list");
+        std::vector<Expr> value_row;
+        do {
+            value_row.push_back(parse_expression());
+        } while (match(TokenType::COMMA));
+        expect(TokenType::RPAREN, "Expected ')' after values list");
+        stmt.values.push_back(std::move(value_row));
+    } while (match(TokenType::COMMA));
+    return stmt;
+}
+
+CreateTableStmt Parser::parse_create_table_stmt() {
+    CreateTableStmt stmt;
+
+    expect(TokenType::TABLE, "Expected TABLE keyword after CREATE");
+    const Token table_token = expect(TokenType::IDENTIFIER, "Expected table name after CREATE TABLE");
+    stmt.table_name = table_token.literal;
+
+    expect(TokenType::LPAREN, "Expected '(' after table name in CREATE TABLE");
+
+    do {
+        ColumnDef col;
+        const Token name = expect(TokenType::IDENTIFIER, "Expected column name in CREATE TABLE");
+        col.name = name.literal;
+
+        const Token type_token = advance();
+        col.type = token_to_data_type(type_token);
+
+        // Parse column constraints
+        // Continue looping as long as we don't hit a comma (next column) or closing parenthesis
+        while (current().type != TokenType::COMMA && current().type != TokenType::RPAREN) {
+            if (match(TokenType::PRIMARY)) {
+                expect(TokenType::KEY, "Expected KEY after PRIMARY in column definition");
+                col.primary_key = true;
+            } else if (match(TokenType::NOT)) {
+               if (current().type == TokenType::NULL_TYPE) {
+                   advance(); // Consume NULL
+                   col.not_null = true;
+               } else if (current().type == TokenType::IDENTIFIER && current().literal == "NULL") {
+                   advance(); // Consume NULL
+                   col.not_null = true;
+               } else {
+                   throw std::runtime_error("Expected NULL after NOT in column definition at line " +
+                       std::to_string(current().line) + ", column " +
+                       std::to_string(current().column));
+               }
+            }else if (match(TokenType::UNIQUE)) {
+                col.unique = true;
+            } else {
+                throw std::runtime_error("Unknown column constraint at line " +
+                    std::to_string(current().line) + ", column " +
+                    std::to_string(current().column));
+            }
+        }
+
+        stmt.columns.push_back(std::move(col));
+    } while (match(TokenType::COMMA));
+
+    expect(TokenType::RPAREN, "Expected ')' after column definitions in CREATE TABLE");
+    return stmt;
+}
+
 Expression Parser::parse_expression(const int precedence) {
     // 1. Parse the left-hand side (primary expression)
     Expression left = parse_primary();
@@ -177,6 +298,8 @@ Expression Parser::parse_expression(const int precedence) {
     while (true) {
         const Token token = current();
         const int tok_precedence = get_precedence(token.type);
+        std::cout<< "Current token: " << token.literal << " with precedence " << tok_precedence << "\n";
+        std::cout << "Current token type: " << static_cast<int>(token.type) << "\n";
 
         // If next token is not an operator or has lower precedence, stop
         if (tok_precedence <= precedence) {

@@ -22,7 +22,7 @@
 
 #include "lexer.h"
 
-Lexer::Lexer(std::string input) : input(input) {
+Lexer::Lexer(const std::string &input) : input(input) {
     readChar();
 }
 
@@ -48,7 +48,7 @@ void Lexer::skipWhitespace() {
 }
 
 std::string Lexer::readIdentifier() {
-    size_t startPosition = position;
+    const size_t startPosition = position;
     // Allow alphanumeric and underscore
     while (isalpha(ch) || ch == '_' || isdigit(ch)) {
         readChar();
@@ -58,7 +58,7 @@ std::string Lexer::readIdentifier() {
 }
 
 std::string Lexer::readNumber() {
-    size_t startPosition = position;
+    const size_t startPosition = position;
     while (isdigit(ch) || ch == '.') {
         readChar();
     }
@@ -71,10 +71,27 @@ TokenType Lexer::lookupIdent(const std::string& ident) {
     std::string upperIdent = ident;
     for (auto & c : upperIdent) c = toupper(c);
 
-    if (keywords.find(upperIdent) != keywords.end()) {
+    if (keywords.contains(upperIdent)) {
         return keywords[upperIdent];
     }
     return TokenType::IDENTIFIER;
+}
+
+std::string Lexer::readString() {
+    const size_t startPosition = position + 1; // Skip opening quote
+    readChar(); // Move past the opening quote
+
+    while (ch != '\'' && ch != 0) {
+        readChar();
+    }
+
+    // Capture the string literal
+    std::string str = input.substr(startPosition, position - startPosition);
+
+    if (ch == '\'') {
+        readChar(); // Consume the closing quote
+    }
+    return str;
 }
 
 Token Lexer::NextToken() {
@@ -106,17 +123,35 @@ Token Lexer::NextToken() {
         case ')':
             tok = {TokenType::RPAREN, std::string(1, ch), line, column};
             break;
+        case '+':
+            tok = {TokenType::PLUS, std::string(1, ch), line, column};
+            break;
+        case '-':
+            tok = {TokenType::MINUS, std::string(1, ch), line, column};
+            break;
+        case '%':
+            tok = {TokenType::PERCENT, std::string(1, ch), line, column};
+            break;
+        case '^':
+            tok = {TokenType::CARET, std::string(1, ch), line, column};
+            break;
+        case '\'':
+            tok.type = TokenType::STRING;
+            tok.literal = readString();
+            tok.line = line;
+            tok.column = column;
+            return tok;
         case 0:
             tok = {TokenType::EOF_TOKEN, std::string(1, ch), line, column};
             break;
         default:
             if (isalpha(ch) || ch == '_') {
                 // It's a keyword or identifier
-                std::string ident = readIdentifier();
-                TokenType type = lookupIdent(ident);
+                const std::string ident = readIdentifier();
+                const TokenType type = lookupIdent(ident);
                 return {type, ident, line, column - static_cast<int>(ident.length())};
             } else if (isdigit(ch)) {
-                std::string number = readNumber();
+                const std::string number = readNumber();
                 return {TokenType::NUMBER, number, line, column - static_cast<int>(number.length())};
             } else {
                 tok = {TokenType::ILLEGAL, std::string(1, ch), line, column};

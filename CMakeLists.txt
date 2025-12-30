@@ -22,6 +22,7 @@ add_library(fluxo_db SHARED library.cpp
         src/parser/parser.cpp
         src/parser/ast.h
         src/parser/ast.cpp
+        tests/unit/parser_test.cpp
 )
 
 target_link_libraries(fluxo_db PRIVATE gtest gtest_main)

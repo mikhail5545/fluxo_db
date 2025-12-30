@@ -52,23 +52,20 @@ using Expr = std::variant<
 using ExprPtr = std::unique_ptr<Expr>;
 
 enum class DataType {
-    INTEGER, BIGINT, TEXT, BOOLEAN, FLOAT, DOUBLE, DATE, TIMESTAMP, VARCHAR, NULL_TYPE
+    INTEGER, BIGINT, TEXT, BOOLEAN, DOUBLE, DATE, TIMESTAMP, VARCHAR, NULL_TYPE
 };
 
 struct LiteralValue {
     DataType type = DataType::NULL_TYPE; // NULL by default
 
     // Only store the active value
-    std::variant<std::monostate, int64_t, double, float, bool, std::string> value;
+    std::variant<std::monostate, int64_t, double, bool, std::string> value;
 
     static LiteralValue Integer(int64_t v) {
         return { DataType::INTEGER, v };
     }
     static LiteralValue BigInt(int64_t v) {
         return { DataType::BIGINT, v };
-    }
-    static LiteralValue Float(float v) {
-        return { DataType::FLOAT, v };
     }
     static LiteralValue Double(double v) {
         return { DataType::DOUBLE, v };
@@ -135,6 +132,7 @@ struct ColumnDef {
     DataType type;
     bool not_null = false;
     bool primary_key = false;
+    bool unique = false;
 };
 
 struct TableRef {

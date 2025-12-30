@@ -27,9 +27,6 @@
 #include "ast.h"
 #include <vector>
 
-#include "ast.h"
-#endif //FLUXO_DB_PARSER_H
-
 class Parser {
 private:
     Lexer &lexer_;
@@ -38,19 +35,26 @@ private:
     std::vector<Token> tokens;
     size_t position = 0;
 
-    Token current() const;
+    [[nodiscard]] Token current() const;
+    [[nodiscard]] Token peek(size_t offset = 1) const;
+    [[nodiscard]] bool is_end() const;
+
     Token advance();
-    Token peek(size_t offset = 1) const;
-    bool match(TokenType type);
     Token expect(TokenType type, const std::string& error_msg);
-    bool is_end() const;
+
+    bool match(TokenType type);
 
     // Parsing methods
     Statement parse_statement();
     SelectStmt parse_select_stmt();
+    InsertStmt parse_insert_stmt();
+    CreateTableStmt parse_create_table_stmt();
+
     Expression parse_expression(int precedence = 0);
     Expression parse_primary();
 public:
     explicit Parser(Lexer &lexer);
     std::vector<Statement> parse();
 };
+
+#endif //FLUXO_DB_PARSER_H
