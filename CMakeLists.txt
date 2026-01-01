@@ -14,15 +14,16 @@ FetchContent_MakeAvailable(googletest)
 
 add_library(fluxo_db SHARED library.cpp
         tools/repl/repl.h
-        src/parser/lexer.h
-        src/parser/lexer.cpp
+        src/lexer/lexer.h
+        src/lexer/lexer.cpp
         tests/unit/lexer_test.cpp
         tests/test_main.cpp
         src/parser/parser.h
         src/parser/parser.cpp
-        src/parser/ast.h
-        src/parser/ast.cpp
+        src/ast/ast.cpp
         tests/unit/parser_test.cpp
+        src/ast/ast_statements.h
+        src/ast/ast_expr.h
 )
 
 target_link_libraries(fluxo_db PRIVATE gtest gtest_main)

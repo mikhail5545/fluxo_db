@@ -21,7 +21,7 @@
 //
 
 #include <gtest/gtest.h>
-#include "src/parser/lexer.h"
+#include "../../src/lexer/lexer.h"
 #include <vector>
 #include <string>
 
