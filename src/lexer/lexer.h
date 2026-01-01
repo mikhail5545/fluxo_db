@@ -34,7 +34,8 @@ enum class TokenType {
     SEQUENCE, CONCURRENTLY, FOREIGN, REFERENCES, CHECK, LOCALE, DETERMINISTIC, PROVIDER, RULES, TABLESPACE, ALLOW_CONNECTIONS,
     CONNECTION_LIMIT, ENCODING, ON, ASC, DESC, NULLS, FIRST, LAST, BEFORE, AFTER, INSTEAD, OF, OR, TRUNCATE, EXECUTE,
     FUNCTION, EACH, ROW, STATEMENT, WHEN, AUTHORIZATION, TEMPORARY, INCREMENT, BY, MINVALUE, MAXVALUE, CYCLE, START,
-    WITH, NO, CACHE, NONE, NULL_TYPE,
+    WITH, NO, CACHE, NONE, ROLE, PASSWORD, LOGIN, NO_LOGIN, SUPERUSER, CONNECTION, LIMIT, VALID, UNTIL, NO_SUPERUSER, CREATE_ROLE,
+    NO_CREATE_ROLE, INHERIT, NO_INHERIT, CREATE_DB, NO_CREATE_DB, NULL_TYPE,
 
     // Literals
     IDENTIFIER, // Table names, column names, etc.
@@ -49,6 +50,7 @@ enum class TokenType {
     EQUALS, // =
     LPAREN, // (
     RPAREN, // )
+    APOSTROPHE, // '
 
     // Operators
     PLUS,
@@ -174,6 +176,22 @@ private:
         {"NO", TokenType::NO},
         {"CACHE", TokenType::CACHE},
         {"NONE", TokenType::NONE},
+        {"ROLE", TokenType::ROLE},
+        {"PASSWORD", TokenType::PASSWORD},
+        {"LOGIN", TokenType::LOGIN},
+        {"NOLOGIN", TokenType::NO_LOGIN},
+        {"SUPERUSER", TokenType::SUPERUSER},
+        {"CONNECTION", TokenType::CONNECTION},
+        {"LIMIT", TokenType::LIMIT},
+        {"VALID", TokenType::VALID},
+        {"UNTIL", TokenType::UNTIL},
+        {"NOSUPERUSER", TokenType::NO_SUPERUSER},
+        {"CREATEROLE", TokenType::CREATE_ROLE},
+        {"NOCREATEROLE", TokenType::NO_CREATE_ROLE},
+        {"INHERIT", TokenType::INHERIT},
+        {"NOINHERIT", TokenType::NO_INHERIT},
+        {"CREATEDB", TokenType::CREATE_DB},
+        {"NOCREATEDB", TokenType::NO_CREATE_DB},
         {"NULL", TokenType::NULL_TYPE},
     };
 

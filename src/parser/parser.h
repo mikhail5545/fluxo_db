@@ -45,6 +45,8 @@ private:
 
     bool match(TokenType type);
 
+    int64_t determine_sign();
+
     // Parsing methods
     Statement parse_statement();
     SelectStmt parse_select_stmt();
@@ -59,8 +61,9 @@ private:
     OwnerToAction parse_owner_to_action();
     DropStmt parse_drop_stmt();
 
-    ColumnDef parse_column_def();
+    CreateStmt parse_create_stmt();
 
+    ColumnDef parse_column_def();
     TableConstraint parse_table_constraint();
     CreateTableStmt parse_create_table_stmt();
     CreateCollationStmt parse_create_collation_stmt();
@@ -70,7 +73,7 @@ private:
     CreateSchemaStmt parse_create_schema_stmt();
     CreateSequenceStmt parse_create_sequence_stmt();
     CreateRoleStmt parse_create_role_stmt();
-    CreateUserStmt parse_create_user_stmt();
+    CreateViewStmt parse_create_view_stmt();
 
     Expression parse_expression(int precedence = 0);
     Expression parse_primary();

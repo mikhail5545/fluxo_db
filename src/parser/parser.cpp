@@ -63,6 +63,12 @@ static BinaryOp::Op token_to_binop(const TokenType type) {
     }
 }
 
+int64_t Parser::determine_sign() {
+    int64_t sign = 1;
+    if (match(TokenType::MINUS)) sign = -1;
+    return sign;
+}
+
 static std::string errMsg(const Token& token, const std::string& msg) {
     return msg + " at line " + std::to_string(token.line) + ", column " + std::to_string(token.column);
 }
@@ -552,6 +558,42 @@ DropStmt Parser::parse_drop_stmt() {
     return stmt;
 }
 
+CreateStmt Parser::parse_create_stmt() {
+    // We have already consumed CREATE keyword
+    // Peek ahead to skip optional modifiers and find the object type
+    size_t offset = 0;
+
+    if (peek(offset).type == TokenType::TEMPORARY) {
+        offset++;
+    }
+    else if (peek(offset).type == TokenType::UNIQUE) {
+        offset++;
+    }
+
+    switch (peek(offset).type) {
+        case TokenType::TABLE:
+            return parse_create_table_stmt();
+        case TokenType::SEQUENCE:
+            return parse_create_sequence_stmt();
+        case TokenType::INDEX:
+            return parse_create_index_stmt();
+        case TokenType::TRIGGER:
+            return parse_create_trigger_stmt();
+        case TokenType::SCHEMA:
+            return parse_create_schema_stmt();
+        case TokenType::COLLATION:
+            return parse_create_collation_stmt();
+        case TokenType::DATABASE:
+            return parse_create_database_stmt();
+        case TokenType::ROLE:
+            return parse_create_role_stmt();
+        default:
+            throw std::runtime_error("Unknown object type in CREATE statement at line " +
+                std::to_string(current().line) + ", column " +
+                std::to_string(current().column));
+    }
+}
+
 ColumnDef Parser::parse_column_def() {
     ColumnDef column_def;
 
@@ -654,6 +696,8 @@ TableConstraint Parser::parse_table_constraint() {
 CreateTableStmt Parser::parse_create_table_stmt() {
     CreateTableStmt stmt;
 
+    expect(TokenType::TABLE, errMsg(current(), "Expected TABLE keyword after CREATE"));
+
     // Parse optional IF NOT EXISTS
     if (match(TokenType::IF)) {
         expect(TokenType::NOT, errMsg(current(), "Expected NOT after IF in CREATE TABLE"));
@@ -699,8 +743,72 @@ CreateTableStmt Parser::parse_create_table_stmt() {
     return stmt;
 }
 
+CreateRoleStmt Parser::parse_create_role_stmt() {
+    CreateRoleStmt stmt;
+
+    expect(TokenType::ROLE, errMsg(current(), "Expected ROLE keyword after CREATE"));
+
+    if (match(TokenType::IF)) {
+        expect(TokenType::NOT, errMsg(current(), "Expected NOT after IF in CREATE ROLE"));
+        expect(TokenType::EXISTS, errMsg(current(), "Expected EXISTS after NOT in CREATE ROLE"));
+        stmt.if_not_exists = true;
+    }
+
+    stmt.role_name = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected role name after CREATE ROLE")).literal;
+
+    if (match(TokenType::WITH)) {
+        while (current().type != TokenType::SEMICOLON && current().type != TokenType::EOF_TOKEN) {
+            switch (current().type) {
+                case TokenType::LOGIN: stmt.login = true; break;
+                case TokenType::NO_LOGIN: stmt.login = false; break;
+                case TokenType::SUPERUSER: stmt.superuser = true; break;
+                case TokenType::NO_SUPERUSER: stmt.superuser = false; break;
+                case TokenType::CREATE_DB: stmt.createdb = true; break;
+                case TokenType::NO_CREATE_DB: stmt.createdb = false; break;
+                case TokenType::CREATE_ROLE: stmt.createrole = true; break;
+                case TokenType::NO_CREATE_ROLE: stmt.createrole = false; break;
+                case TokenType::INHERIT: stmt.inherit = true; break;
+                case TokenType::NO_INHERIT: stmt.inherit = false; break;
+                case TokenType::PASSWORD: {
+                    advance();
+                    if (match(TokenType::NULL_TYPE)) {
+                        stmt.password = std::nullopt;
+                    } else {
+                        const Token pwd_token = expect(TokenType::STRING, errMsg(current(), "Expected password string after PASSWORD in CREATE ROLE"));
+                        stmt.password = pwd_token.literal;
+                    }
+                } case TokenType::CONNECTION: {
+                    advance();
+                    expect(TokenType::LIMIT, errMsg(current(), "Expected LIMIT after CONNECTION in CREATE ROLE"));
+
+                    const int64_t sign = determine_sign();
+
+                    const Token limit_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after LIMIT in CREATE ROLE"));
+                    const int64_t limit_value = std::stoi(limit_token.literal);
+                    if (sign < 0 && limit_value != 1) {
+                        throw std::runtime_error("Connection limit cannot be less than -1 in CREATE ROLE at line " +
+                            std::to_string(limit_token.line) + ", column " +
+                            std::to_string(limit_token.column));
+                    }
+                    stmt.conn_limit = limit_value * sign;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown option in CREATE ROLE at line " +
+                        std::to_string(current().line) + ", column " +
+                        std::to_string(current().column));
+                    break;
+            }
+            advance(); // Consume the matched option
+        }
+    }
+    return stmt;
+}
+
 CreateCollationStmt Parser::parse_create_collation_stmt() {
     CreateCollationStmt stmt;
+
+    expect(TokenType::COLLATION, errMsg(current(), "Expected COLLATION keyword after CREATE"));
 
     if (match(TokenType::IF)) {
         expect(TokenType::NOT, errMsg(current(), "Expected NOT after IF in CREATE COLLATION"));
@@ -751,6 +859,8 @@ CreateCollationStmt Parser::parse_create_collation_stmt() {
 
 CreateDatabaseStmt Parser::parse_create_database_stmt() {
     CreateDatabaseStmt stmt;
+
+    expect(TokenType::DATABASE, errMsg(current(), "Expected DATABASE keyword after CREATE"));
 
     if (match(TokenType::IF)) {
         expect(TokenType::NOT, errMsg(current(), "Expected NOT after IF in CREATE DATABASE"));
@@ -879,6 +989,8 @@ CreateIndexStmt Parser::parse_create_index_stmt() {
 CreateTriggerStmt Parser::parse_create_trigger_stmt() {
     CreateTriggerStmt stmt;
 
+    expect(TokenType::TRIGGER, errMsg(current(), "Expected TRIGGER keyword in CREATE TRIGGER"));
+
     stmt.trigger_name = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected trigger name in CREATE TRIGGER")).literal;
 
     if (match(TokenType::BEFORE)) {
@@ -977,43 +1089,75 @@ CreateSequenceStmt Parser::parse_create_sequence_stmt() {
     stmt.sequence_name = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected sequence name after CREATE SEQUENCE")).literal;
 
     while (current().type != TokenType::SEMICOLON && current().type != TokenType::EOF_TOKEN) {
-        if (match(TokenType::INCREMENT)) {
-            expect(TokenType::BY, errMsg(current(), "Expected BY after INCREMENT in CREATE SEQUENCE"));
-            const Token inc_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after INCREMENT BY in CREATE SEQUENCE"));
-            stmt.increment_by = std::stoi(inc_token.literal);
-        } else if (match(TokenType::MINVALUE)) {
-            const Token min_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after MINVALUE in CREATE SEQUENCE"));
-            stmt.min_value = std::stoi(min_token.literal);
-        } else if (match(TokenType::MAXVALUE)) {
-            const Token max_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after MAXVALUE in CREATE SEQUENCE"));
-            stmt.max_value = std::stoi(max_token.literal);
-        } else if (match(TokenType::NO)) {
-            expect(TokenType::CYCLE, errMsg(current(), "Expected CYCLE after NO in CREATE SEQUENCE"));
-            stmt.cycle = false;
-        } else if (match(TokenType::CYCLE)) {
-            stmt.cycle = true;
-        } else if (match(TokenType::START)) {
-            expect(TokenType::WITH, errMsg(current(), "Expected WITH after START in CREATE SEQUENCE"));
-            const Token start_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after START WITH in CREATE SEQUENCE"));
-            stmt.start_value = std::stoi(start_token.literal);
-        } else if (match(TokenType::CACHE)) {
-            const Token cache_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after CACHE in CREATE SEQUENCE"));
-            stmt.cache_size = std::stoi(cache_token.literal);
-        } else if (match(TokenType::OWNED)) {
-            expect(TokenType::BY, errMsg(current(), "Expected BY after OWNED in CREATE SEQUENCE"));
-            if (match(TokenType::NONE)) {
-                stmt.owner = std::nullopt;
-            } else {
-                const Token table_token = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected table name after OWNED BY in CREATE SEQUENCE"));
-                expect(TokenType::DOT, errMsg(current(), "Expected '.' between table and column name in OWNED BY in CREATE SEQUENCE"));
-                const Token column_token = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected column name after '.' in OWNED BY in CREATE SEQUENCE"));
-                stmt.owner = std::make_pair(table_token.literal, column_token.literal);
-            }
-        }
-        else {
-            throw std::runtime_error("Unknown option in CREATE SEQUENCE at line " +
+        switch (current().type) {
+            case TokenType::INCREMENT:{
+                advance(); // consume INCREMENT
+                expect(TokenType::BY, errMsg(current(), "Expected BY after INCREMENT in CREATE SEQUENCE"));
+
+                const int64_t sign = determine_sign();
+
+                const Token inc_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after INCREMENT BY in CREATE SEQUENCE"));
+                stmt.increment_by = std::stoi(inc_token.literal) * sign;
+                break;
+            } case TokenType::MINVALUE: {
+                advance();
+                int64_t sign = determine_sign();
+
+                const Token min_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after MINVALUE in CREATE SEQUENCE"));
+                stmt.min_value = std::stoi(min_token.literal) * sign;
+                break;
+            } case TokenType::MAXVALUE: {
+                advance();
+                int64_t sign = determine_sign();
+
+                const Token max_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after MAXVALUE in CREATE SEQUENCE"));
+                stmt.max_value = std::stoi(max_token.literal) * sign;
+                break;
+            } case TokenType::CYCLE: {
+                advance();
+                stmt.cycle = true;
+                break;
+            } case TokenType::START: {
+                advance();
+                expect(TokenType::WITH, errMsg(current(), "Expected WITH after START in CREATE SEQUENCE"));
+
+                const int64_t sign = determine_sign();
+
+                const Token start_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after START WITH in CREATE SEQUENCE"));
+                stmt.start_value = std::stoi(start_token.literal) * sign;
+                break;
+            } case TokenType::CACHE: {
+                advance();
+                const Token cache_token = expect(TokenType::NUMBER, errMsg(current(), "Expected number after CACHE in CREATE SEQUENCE"));
+                stmt.cache_size = std::stoi(cache_token.literal);
+                break;
+            } case TokenType::NO: {
+                advance();
+                if (match(TokenType::CYCLE)) stmt.cycle = false;
+                else if (match(TokenType::MINVALUE)) stmt.min_value = std::nullopt;
+                else if (match(TokenType::MAXVALUE)) stmt.max_value = std::nullopt;
+                else throw std::runtime_error("Expected CYCLE, MINVALUE, or MAXVALUE after NO in CREATE SEQUENCE at line " +
+                    std::to_string(current().line) + ", column " +
+                    std::to_string(current().column));
+                break;
+            } case TokenType::OWNED: {
+                advance();
+                expect(TokenType::BY, errMsg(current(), "Expected BY after OWNED in CREATE SEQUENCE"));
+                if (match(TokenType::NONE)) {
+                    stmt.owner = std::nullopt;
+                } else {
+                    const Token table_token = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected table name after OWNED BY in CREATE SEQUENCE"));
+                    expect(TokenType::DOT, errMsg(current(), "Expected '.' between table and column name in OWNED BY in CREATE SEQUENCE"));
+                    const Token column_token = expect(TokenType::IDENTIFIER, errMsg(current(), "Expected column name after '.' in OWNED BY in CREATE SEQUENCE"));
+                    stmt.owner = std::make_pair(table_token.literal, column_token.literal);
+                }
+                break;
+            } default: {
+                throw std::runtime_error("Unknown option in CREATE SEQUENCE at line " +
                 std::to_string(current().line) + ", column " +
                 std::to_string(current().column));
+                break;
+            }
         }
     }
     return stmt;
@@ -1021,6 +1165,8 @@ CreateSequenceStmt Parser::parse_create_sequence_stmt() {
 
 CreateSchemaStmt Parser::parse_create_schema_stmt() {
     CreateSchemaStmt stmt;
+
+    expect(TokenType::SCHEMA, errMsg(current(), "Expected SCHEMA keyword after CREATE"));
 
     if (match(TokenType::IF)) {
         expect(TokenType::NOT, errMsg(current(), "Expected NOT after IF in CREATE SCHEMA"));

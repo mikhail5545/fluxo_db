@@ -198,7 +198,6 @@ struct CreateRoleStmt {
     std::optional<std::string> valid_until; // Expiration timestamp
     std::optional<std::string> password; // Plaintext password
 };
-using CreateUserStmt = CreateRoleStmt;
 
 struct SelectStmt {
     std::vector<Expr> projections; // SELECT clause
@@ -283,8 +282,7 @@ using CreateStmt = std::variant<
     CreateSequenceStmt,
     CreateDatabaseStmt,
     CreateCollationStmt,
-    CreateRoleStmt,
-    CreateUserStmt
+    CreateRoleStmt
 >;
 
 // TODO: replace user by role (user is just a role with login privilege)
