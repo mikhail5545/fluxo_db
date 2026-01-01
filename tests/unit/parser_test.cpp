@@ -26,8 +26,8 @@ fluxo_db in-memory database
 #include <string>
 
 #include "src/parser/parser.h"
-#include "../../src/parser/ast.h"
-#include "src/parser/lexer.h"
+#include "../../src/ast/ast.h"
+#include "../../src/lexer/lexer.h"
 
 class ParserTest : public ::testing::Test {
 protected:
@@ -109,4 +109,24 @@ TEST_F(ParserTest, ThrowsOnInvalidSyntax) {
     EXPECT_THROW({
         parseSQL("SELECT (1 + 2;");
     }, std::runtime_error);
+}
+
+TEST_F(ParserTest, ParseDropStatement) {
+    const auto statements = parseSQL("DROP TABLE IF EXISTS users;");
+
+    ASSERT_EQ(statements.size(), 1);
+    const auto* dropStmt = std::get_if<DropTableStmt>(&statements[0]);
+    ASSERT_NE(dropStmt, nullptr) << "Expected a DropTableStmt";
+    EXPECT_EQ(dropStmt->table_name, "users");
+    EXPECT_TRUE(dropStmt->if_exists);
+}
+
+TEST_F(ParserTest, ParseDropStatementWithOnCascade) {
+    const auto statements = parseSQL("DROP TABLE users CASCADE;");
+
+    ASSERT_EQ(statements.size(), 1);
+    const auto* dropStmt = std::get_if<DropTableStmt>(&statements[0]);
+    ASSERT_NE(dropStmt, nullptr) << "Expected a DropTableStmt";
+    EXPECT_EQ(dropStmt->table_name, "users");
+    EXPECT_TRUE(dropStmt->cascade);
 }
