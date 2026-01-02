@@ -32,20 +32,22 @@ class Parser {
 private:
     Lexer &lexer_;
     Token current_token_;
-
     std::vector<Token> tokens;
     size_t position = 0;
 
-    [[nodiscard]] Token current() const;
-    [[nodiscard]] Token peek(size_t offset = 1) const;
-    [[nodiscard]] bool is_end() const;
-
     Token advance();
     Token expect(TokenType type, const std::string& error_msg);
+    [[nodiscard]] Token current() const;
+    [[nodiscard]] Token peek(size_t offset = 1) const;
 
+    [[nodiscard]] bool is_end() const;
     bool match(TokenType type);
-
     int64_t determine_sign();
+
+    static int get_precedence(TokenType type);
+    static std::string errMsg(const Token& token, const std::string& msg);
+    static DataType token_to_data_type(const Token& token);
+    static BinaryOp::Op token_to_binop(TokenType type);
 
     // Parsing methods
     Statement parse_statement();

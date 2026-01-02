@@ -19,11 +19,22 @@ add_library(fluxo_db SHARED library.cpp
         tests/unit/lexer_test.cpp
         tests/test_main.cpp
         src/parser/parser.h
-        src/parser/parser.cpp
         src/ast/ast.cpp
         tests/unit/parser_test.cpp
         src/ast/ast_statements.h
         src/ast/ast_expr.h
+        src/parser/parser_core.cpp
+        src/parser/parser_expr.cpp
+        src/parser/parser_select.cpp
+        src/parser/parser_insert.cpp
+        src/parser/parser_alter.cpp
+        src/parser/parser_drop.cpp
+        src/parser/parser_create.cpp
+        src/catalog/schema/schema.h
+        src/catalog/catalog/catalog.h
+        src/catalog/catalog/catalog.cpp
+        src/execution/execution.cpp
+        src/execution/executor.h
 )
 
 target_link_libraries(fluxo_db PRIVATE gtest gtest_main)

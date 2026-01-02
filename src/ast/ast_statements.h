@@ -213,8 +213,9 @@ struct SelectStmt {
 
 struct CreateViewStmt {
     std::string view_name;
-    bool if_not_exists = false;
     bool temporary = false;
+    bool or_replace = false;
+    bool recursive = false;
     std::vector<std::string> columns; // Optional column names
     SelectStmt select_stmt; // The SELECT statement defining the view
 };
